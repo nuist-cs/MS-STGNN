@@ -6,12 +6,6 @@ import torch
 from scipy.sparse import linalg
 from torch.autograd import Variable
 
-
-# def mape_loss(true,pre):
-#     dataabs = torch.abs(true - pre)
-#     return torch.mean(dataabs / true)*100
-
-
 def mape_loss(target, input):
     return (torch.abs(input - target) / (torch.abs(target) + 1e-2)).mean() * 100
 
