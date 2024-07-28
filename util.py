@@ -7,9 +7,13 @@ from scipy.sparse import linalg
 from torch.autograd import Variable
 
 
-def mape_loss(true,pre):
-    dataabs = torch.abs(true - pre)
-    return torch.mean(dataabs / true)*100
+# def mape_loss(true,pre):
+#     dataabs = torch.abs(true - pre)
+#     return torch.mean(dataabs / true)*100
+
+
+def mape_loss(target, input):
+    return (torch.abs(input - target) / (torch.abs(target) + 1e-2)).mean() * 100
 
 def MAPE(y_true, y_pre):
     y_true = (y_true).reshape((-1, 1))
@@ -33,10 +37,8 @@ class DataLoaderS(object):
         self.h = horizon
         fin = open(file_name)
         self.rawdat = np.loadtxt(fin, delimiter=',')
-        self.rawdat =  np.delete(self.rawdat, 4, axis=1)
         self.dat = np.zeros(self.rawdat.shape)
         self.n, self.m = self.dat.shape
-        self.normalize = 2
         self.scale = np.ones(self.m)
         self._normalized(normalize)
         self.train_feas = self.dat[:int(train * self.n), :]
@@ -50,19 +52,10 @@ class DataLoaderS(object):
         self.device = device
 
     def _normalized(self, normalize):
-        # normalized by the maximum value of entire matrix.
 
-        if (normalize == 0):
-            self.dat = self.rawdat
-
-        if (normalize == 1):
-            self.dat = self.rawdat / np.max(self.rawdat)
-
-        # normlized by the maximum value of each row(sensor).
-        if (normalize == 2):
-            for i in range(self.m):
-                self.scale[i] = np.max(np.abs(self.rawdat[:, i]))
-                self.dat[:, i] = self.rawdat[:, i] / np.max(np.abs(self.rawdat[:, i]))
+        for i in range(self.m):
+            self.scale[i] = np.max(np.abs(self.rawdat[:, i]))
+            self.dat[:, i] = self.rawdat[:, i] / np.max(np.abs(self.rawdat[:, i]))
 
     def _split(self, train, valid, test):
 
