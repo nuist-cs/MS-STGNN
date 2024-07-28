@@ -328,24 +328,14 @@ class LayerNorm(nn.Module):
             'elementwise_affine={elementwise_affine}'.format(**self.__dict__)
 
 
-
-minm = -99999999
-
-def cosine_similarity_torch(x1, x2=None, eps=1e-8):
-    x2 = x1 if x2 is None else x2
-    w1 = x1.norm(p=2, dim=1, keepdim=True)
-    w2 = w1 if x2 is x1 else x2.norm(p=2, dim=1, keepdim=True)
-    return torch.mm(x1, x2.t()) / (w1 * w2.t()).clamp(min=eps)
-
 class Adjacency_generator(nn.Module):
-    def __init__(self, embedding_size, num_nodes, time_series, kernel_size, freq, requires_graph, seq_len, input_dim, device):
+    def __init__(self, embedding_size, num_nodes, time_series, kernel_size, freq, requires_graph, input_dim, device):
         super(Adjacency_generator, self).__init__()
         self.freq = freq
         self.kernel_size = kernel_size
         self.num_nodes = num_nodes
         self.embedding = embedding_size
         self.time_series = time_series
-        self.seq_len = seq_len
         self.input_dim = input_dim
         self.segm = int((self.time_series.shape[0]-1) // self.freq)
         self.graphs = requires_graph
@@ -371,33 +361,12 @@ class Adjacency_generator(nn.Module):
 
         self.times = torch.stack(times, dim=0) # (graphs, freq, num_nodes)
 
-    def forward(self, node_feas): # input: (seq_len, batch_size, num_sensor * input_dim)
-        node_feas = node_feas.reshape(node_feas.shape[0],-1,node_feas.shape[3])
-        node_feas = node_feas.permute(2,0,1)
+    def forward(self, node_feas):
         mid_input = self.conv1d(self.times.permute(2,0,1)).permute(1,0,2) #(graphs, num_nodes, freq-kernel_size+1)
-        mid_output = torch.stack([F.relu(self.fc_1(mid_input[i,...])) for i in range(self.graphs)], dim=0)
+        mid_output = F.relu(self.fc_1(mid_input[0,...]))
         output = torch.sigmoid(self.fc_2(mid_output))
-        # 对于cos_similarity来说，值越大表示越接近
-        max_similarity = minm
-        seq_len = node_feas.shape[0]
-        batch_size = node_feas.shape[1]
-        node_feas = node_feas.reshape(seq_len, batch_size, self.num_nodes, -1)
-        node_feas = node_feas.permute(1, 2, 3, 0)
-        node_feas = node_feas.reshape(batch_size, self.num_nodes, -1)
-        nodes_feature = torch.zeros(node_feas.shape[1], node_feas.shape[2]).to(self.device)
-        for i in range(node_feas.shape[0]):
-            nodes_feature += node_feas[i, ...]
-        node_feas = torch.matmul(nodes_feature, nodes_feature.T)
-        select = -1
-        for graph_idx in range(output.shape[0]):
-            x_1 = node_feas.reshape(1, -1)
-            x_2 = output[graph_idx, :, :].reshape(1, -1)
-            similarity = cosine_similarity_torch(x_1, x_2, eps=1e-20)
-            if similarity > max_similarity:
-                max_similarity = similarity
-                select = graph_idx
 
-        return output[select]
+        return output
 
 
 class Variable_Self_Attn(nn.Module):
